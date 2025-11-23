@@ -22,13 +22,37 @@ concurrency:
 env:
   AWS_REGION: us-east-1
   ECR_REPOSITORY: pucrs-crypto-api-repo
+  SONAR_HOST_URL: https://sonarqube.academylam.net
+
 
 jobs:
-  # ==========================================================
-  # 🧩 JOB 1: Verifica se a infraestrutura AWS está OK
-  # ==========================================================
+  # 1. 🔍 FASE: Análise de Código (Job Inicial)
+  code-analysis:
+    # ✅ Só roda se o CI terminou com sucesso
+    name: 🔍 SonarQube Analysis
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: SonarQube Scan
+        uses: SonarSource/sonarqube-scan-action@v6.0.0
+        with:
+          args: >
+            -Dsonar.host.url=${{ env.SONAR_HOST_URL }}
+            -Dsonar.token=${{ secrets.SONAR_TOKEN }}
+            -Dsonar.projectKey=pucrs-crypto-api
+            -Dsonar.sources=crypto-api/src
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
+  # 2. 🧩 Verifica se a infraestrutura AWS está OK
   infra-check:
     uses: ./.github/workflows/002_check_infra_aws.yml
+    needs: code-analysis
     secrets: inherit
 
   print-infra-output:
@@ -48,9 +72,8 @@ jobs:
           echo "✅ Prosseguindo mesmo que a infra não esteja pronta (push detectado ou infra OK)."
         fi
 
-  # ==========================================================
-  # 🚀 JOB 2: Build, Test e Push da Imagem no ECR
-  # ==========================================================
+
+  # 3. 🚀 Build, Test e Push da Imagem no ECR
   backend-ci-build-and-push:
     name: 🚀 Build, Test and Push Backend Docker Image
     needs: print-infra-output

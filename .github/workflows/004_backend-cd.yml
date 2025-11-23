@@ -14,39 +14,11 @@ concurrency:
 env:
   AWS_REGION: us-east-1
   TF_WORKING_DIR: ./iac/flow
-  SONAR_HOST_URL: https://sonarqube.academylam.net
-
 
 jobs:
-  # 1. 🔍 FASE: Análise de Código (Job Inicial)
-  code-analysis:
-    # ✅ Só roda se o CI terminou com sucesso
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
-
-    name: 🔍 SonarQube Analysis
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: SonarQube Scan
-        uses: SonarSource/sonarqube-scan-action@v6.0.0
-        with:
-          args: >
-            -Dsonar.host.url=${{ env.SONAR_HOST_URL }}
-            -Dsonar.token=${{ secrets.SONAR_TOKEN }}
-            -Dsonar.projectKey=pucrs-crypto-api
-            -Dsonar.sources=crypto-api/src
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-
-  # 2. 🚀 FASE: Deploy da Imagem no Ambiente de Stage
+  # 1. 🚀 FASE: Deploy da Imagem no Ambiente de Stage
   deploy-backend:
     name: 🚀 Deploy Backend Docker Image
-    needs: code-analysis
     runs-on: ubuntu-latest
     
     steps:

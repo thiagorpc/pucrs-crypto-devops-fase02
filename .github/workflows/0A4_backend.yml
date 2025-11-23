@@ -14,42 +14,54 @@ concurrency:
 env:
   AWS_REGION: us-east-1
   TF_WORKING_DIR: ./iac/flow
+  SONAR_HOST_URL: "http://187.32.91.220:8080"
 
 jobs:
+# 1. 🔍 FASE: Análise de Código (Job Inicial)
+  code-analysis:
+    name: 🔍 SonarQube Analysis
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      
+      # Nota: É mais idiomático usar o Action oficial do SonarQube
+      - name: SonarQube Scanner
+        uses: SonarSource/sonarcloud-github-action@master
+        with:
+          projectBaseDir: .
+          args: >
+            -Dsonar.host.url=${{ env.SONAR_HOST_URL }}
+            -Dsonar.token=${{ secrets.SONAR_TOKEN }}
+
+# 2. 🛡️ FASE: Teste de Segurança (Depende da Análise de Código)
+  security-test:
+    name: 🛡️ OWASP ZAP Scan
+    runs-on: ubuntu-latest
+    needs: [code-analysis]
+    # if: always()
+    
+    # Exemplo (você deve descomentar e configurar a URL)
+    # steps:
+    #   - name: ZAP Baseline Scan
+    #     uses: docker://owasp/zap2docker-stable
+    #     with:
+    #       args: zap-baseline.py -t http://<application-url>
+
+
+# 3. 🚀 FASE: Deploy (Depende do Teste de Segurança)
   deploy-backend:
     name: 🚀 Deploy Backend Docker Image
+    needs: [security-test]
     runs-on: ubuntu-latest
 
     # ✅ Só roda se o CI terminou com sucesso
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
 
-    stages:
-        - code-analysis
-        - security-test
-      
-      variables:
-        SONAR_HOST_URL: "http://187.32.91.220:8080"
-        SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-      
-      sonarqube-analysis:
-        stage: code-analysis
-        image: sonarsource/sonar-scanner-cli
-        script:
-          - sonar-scanner -Dsonar.host.url=$SONAR_HOST_URL -Dsonar.login=$SONAR_TOKEN
-        only:
-          - main
-      
-      #owasp-zap-scan:
-      #  stage: security-test
-      #  image: owasp/zap2docker-stable
-      #  script:
-      #    - zap-baseline.py -t http://<application-url>
-      #  only:
-      #    - main
-
     steps:
       - name: Checkout
-        needs: [sonarqube-analysis]
         uses: actions/checkout@v4
 
       - name: Download image_tag artifact (from CI)

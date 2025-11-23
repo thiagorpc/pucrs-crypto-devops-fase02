@@ -32,7 +32,7 @@ jobs:
           
       - name: SonarQube Scan
         # ✅ CORRETO: Use a Action oficial do SonarSource
-        uses: SonarSource/sonarcloud-github-action@master # Ou use uma tag específica
+        uses: SonarSource/sonarqube-scan-action@v5 # Ou use uma tag específica
         with:
           # O action lê o host e o token como argumentos (args) por padrão.
           # O SONAR_TOKEN é automaticamente injetado se estiver definido como Secret.
@@ -42,6 +42,8 @@ jobs:
             -Dsonar.token=${{ secrets.SONAR_TOKEN }}
             -Dsonar.projectKey=crypto-api-project 
             -Dsonar.sources=crypto-api/src
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
             
 # 2. 🛡️ FASE: Teste de Segurança (Depende da Análise de Código)
 # ... (Este job está comentado e não afeta a execução atual)

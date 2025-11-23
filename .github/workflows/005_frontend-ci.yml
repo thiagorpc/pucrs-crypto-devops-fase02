@@ -24,11 +24,35 @@ env:
   APIGW_NAME: pucrs-crypto-api-gateway
 
 jobs:
+  # 1. 🔍 FASE: Análise de Código (Job Inicial)
+  code-analysis:
+    # ✅ Só roda se o CI terminou com sucesso
+    name: 🔍 SonarQube Analysis
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: SonarQube Scan
+        uses: SonarSource/sonarqube-scan-action@v6.0.0
+        with:
+          args: >
+            -Dsonar.host.url=${{ env.SONAR_HOST_URL }}
+            -Dsonar.token=${{ secrets.SONAR_TOKEN }}
+            -Dsonar.projectKey=pucrs-crypto-api
+            -Dsonar.sources=crypto-api/src
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          
   # ==========================================================
   # 🧩 JOB 1: Verifica se a infraestrutura AWS está OK
   # ==========================================================
   infra-check:
     uses: ./.github/workflows/002_check_infra_aws.yml
+    needs: code-analysis
     secrets: inherit
 
   print-infra-output:

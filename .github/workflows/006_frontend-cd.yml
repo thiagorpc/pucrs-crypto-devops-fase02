@@ -16,7 +16,7 @@ env:
 concurrency:
   group: terraform
   cancel-in-progress: false
-  
+
 jobs:
   deploy:
     name: 🚀 Deploy Frontend

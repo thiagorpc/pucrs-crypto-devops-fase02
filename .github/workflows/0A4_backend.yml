@@ -29,28 +29,12 @@ jobs:
           fetch-depth: 0
       
       - name: SonarQube Scan
-        uses: SonarSource/sonarqube-scan-action@7.2.0.5079
+        uses: sonarsource/sonar-scanner-cli-action@v1.2
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         with:
           projectBaseDir: src/crypto-api
 
-      - name: Check sonar-scanner version
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        run: sonar-scanner --version
-
-      #- uses: SonarSource/sonarqube-scan-action@<action version>
-      #  with:
-      #    projectBaseDir: app/src
-      #    args: >
-      #      "-Dsonar.projectName=PUCRS Crypto DevOps API"
-      #      -Dsonar.projectKey=my-projectkey
-      #      -Dsonar.python.coverage.reportPaths=coverage.xml
-      #      -Dsonar.sources=lib/
-      #      -Dsonar.tests=tests/
-      #      -Dsonar.test.exclusions=tests/**
-      #      -Dsonar.verbose=true
 
 
 # 2. 🛡️ FASE: Teste de Segurança (Depende da Análise de Código)

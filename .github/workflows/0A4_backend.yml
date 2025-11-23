@@ -29,11 +29,16 @@ jobs:
           fetch-depth: 0
       
       - name: SonarQube Scan
-        uses: SonarSource/sonarqube-scan-action@sha1
+        uses: SonarSource/sonarqube-scan-action@7.2.0.5079
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         with:
           projectBaseDir: src/crypto-api
+
+      - name: Check sonar-scanner version
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: sonar-scanner --version
 
       #- uses: SonarSource/sonarqube-scan-action@<action version>
       #  with:

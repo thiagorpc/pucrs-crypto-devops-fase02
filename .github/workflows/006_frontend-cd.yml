@@ -1,0 +1,151 @@
+name: 006. Frontend CD - Deploy UI
+
+on:
+  workflow_dispatch:
+  workflow_run:
+    workflows: ['005. Frontend CI - Build UI']
+    types:
+      - completed
+
+env:
+  AWS_REGION: us-east-1
+  S3_FRONTEND_BUCKET: pucrs-crypto-frontend
+  TF_INFRA_WORKFLOW: 001_setup_infra_aws.yml
+  APIGW_NAME: pucrs-crypto-api-gateway
+
+concurrency:
+  group: terraform
+  cancel-in-progress: false
+  
+jobs:
+  deploy:
+    name: 🚀 Deploy Frontend
+    runs-on: ubuntu-latest
+
+    # ✅ Só roda se o CI terminou com sucesso
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+
+    steps:
+      - name: 📦 Checkout
+        uses: actions/checkout@v4
+
+      - name: 📥 Baixar artifact do build (frontend-build.zip)
+        uses: dawidd6/action-download-artifact@v3
+        with:
+          workflow: 005_frontend-ci.yml
+          name: frontend-build
+          path: .
+          check_artifacts: true
+
+      - name: 📦 Descompactar build
+        run: |
+          unzip frontend-build.zip -d temp_build
+          ls -l temp_build
+
+      - name: 🔐 Configurar Credenciais AWS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: 🧹 Limpar bucket S3 antes do upload
+        run: |
+          aws s3 rm s3://${{ env.S3_FRONTEND_BUCKET }} --recursive
+
+      - name: 🚀 Fazer upload da nova build para o S3
+        run: |
+          aws s3 sync temp_build/dist/ s3://${{ env.S3_FRONTEND_BUCKET }} --delete
+
+
+      - name: ⚙️ Configurar Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.5.0
+
+      # 🟢 PASSO CHAVE ADICIONADO: INICIALIZAR O BACKEND
+      - name: 🔑 Inicializar Terraform Backend
+        # Usando o mesmo action, mas passando o working_directory como parâmetro do run
+        run: |
+          terraform init -reconfigure
+        working-directory: ./iac/flow
+
+
+      - name: 🔄 Invalidar Cache do CloudFront
+        working-directory: ./iac/flow
+        run: |
+          # O output agora deve funcionar, pois o backend foi inicializado
+          CLOUDFRONT_DISTRIBUTION_ID=$(terraform output -raw cloudfront_distribution_id)
+          echo "🌎 Distribuição encontrada: $CLOUDFRONT_DISTRIBUTION_ID"
+
+          if [ -z "$CLOUDFRONT_DISTRIBUTION_ID" ]; then
+            echo "❌ Nenhuma distribuição encontrada no Terraform Output!"
+            exit 1
+          fi
+
+          aws cloudfront create-invalidation \
+            --distribution-id "$CLOUDFRONT_DISTRIBUTION_ID" \
+            --paths "/*"
+
+      - name: 🎉 Deploy Finalizado
+        run: echo "Frontend deploy finalizado com sucesso!"
+        
+      - name: 🎯 Obter Domain Name do CloudFront
+        id: get_cdn_domain
+        run: |
+          CDN_DOMAIN=$(aws cloudfront list-distributions \
+            --query "DistributionList.Items[?Comment=='CDN para o frontend React no S3'].DomainName" \
+            --output text \
+            --region us-east-1) # CloudFront é sempre global/us-east-1
+
+          if [ -z "$CDN_DOMAIN" ]; then
+            echo "⚠️ Aviso: Distribuição CloudFront não encontrada. Usando URL S3."
+            echo "CDN_DOMAIN=${{ steps.show_url.outputs.URL }}" >> $GITHUB_ENV
+            exit 0
+          fi
+
+          echo "CDN_DOMAIN=https://$CDN_DOMAIN" >> $GITHUB_ENV
+          echo "✅ CloudFront Domain: https://$CDN_DOMAIN"
+
+      - name: 🎯 Obter DNS do API Gateway
+        id: get_api_gateway_dns
+        run: |
+          APIGW_ID=$(aws apigateway get-rest-apis \
+            --region ${{ env.AWS_REGION }} \
+            --query "items[?name=='${{ env.APIGW_NAME }}'].id" \
+            --output text)
+
+          if [ -z "$APIGW_ID" ]; then
+            echo "Erro: Não foi possível encontrar o ID para o API Gateway ${{ env.APIGW_NAME }}."
+            exit 1
+          fi
+
+          APIGW_STAGE="prod"
+          APIGW_DNS_NAME="${APIGW_ID}.execute-api.${{ env.AWS_REGION }}.amazonaws.com/${APIGW_STAGE}"
+          echo "APIGW_URL=https://$APIGW_DNS_NAME" >> $GITHUB_ENV
+          echo "✅ API Gateway DNS: https://$APIGW_DNS_NAME"
+
+      - name: 💬 Notificar Novo Domain Name
+        # Note que a URL estará no ambiente (env.CDN_DOMAIN)
+        run: echo "O novo Frontend HTTPS está em ${{ env.CDN_DOMAIN }}"
+
+      - name: ⚠️ Verificar Deploy e Rollback
+        run: |
+          if [ $? -ne 0 ]; then
+            echo "❌ Erro no deploy, revertendo..."
+            aws s3 sync temp_build/previous/ s3://${{ env.S3_FRONTEND_BUCKET }} --delete
+            exit 1
+          fi
+
+      - name: 🧾 Publicar Resumo do Deploy Frontend
+        if: always()
+        run: |
+          {
+            echo "## 🚀 Frontend Deploy Summary"
+            echo "- Deploy concluído: ✅"
+            echo "- Bucket S3: ${S3_FRONTEND_BUCKET}"
+            echo "- API Gateway: ${APIGW_URL}"
+            echo "- CloudFront Domain: ${CDN_DOMAIN}"
+            echo "- Workflow Run: [${{ github.run_id }}](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})"
+          } >> $GITHUB_STEP_SUMMARY
+

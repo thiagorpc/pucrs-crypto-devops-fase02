@@ -1,0 +1,161 @@
+name: 005. Frontend CI - Build UI
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'crypto-ui/**'
+      
+  workflow_dispatch:
+
+  # 🔹 Dispara automaticamente quando o workflow Setup AWS for concluído
+  workflow_run:
+    workflows: ["001. Setup Infra AWS"]
+    types:
+      - completed
+
+concurrency:
+  group: terraform
+  cancel-in-progress: false
+  
+env:
+  AWS_REGION: us-east-1
+  APIGW_NAME: pucrs-crypto-api-gateway
+
+jobs:
+  # ==========================================================
+  # 🧩 JOB 1: Verifica se a infraestrutura AWS está OK
+  # ==========================================================
+  infra-check:
+    uses: ./.github/workflows/002_check_infra_aws.yml
+    secrets: inherit
+
+  print-infra-output:
+    name: Resultado da Verificação de Infraestrutura
+    needs: infra-check
+    runs-on: ubuntu-latest
+    steps:
+    - name: 🖨 Print Infra Output
+      run: |
+        echo "📢 Infra AWS já está pronta?: ${{ needs.infra-check.outputs.infra_is_ready }}"
+        echo "🔹 Evento que disparou o workflow: ${{ github.event_name }}"
+        
+        if [ "${{ github.event_name }}" != "push" ] && [ "${{ needs.infra-check.outputs.infra_is_ready }}" != "true" ]; then
+          echo "❌ Infra não está pronta e o evento não é push — abortando!"
+          exit 1
+        else
+          echo "✅ Prosseguindo mesmo que a infra não esteja pronta (push detectado ou infra OK)."
+        fi
+
+  # ==========================================================
+  # 🚀 JOB 2: Build, Test e Push da Front-End
+  # ==========================================================
+
+  build-frontend:
+    name: 🚀 Build, Test and Push Frontend
+    needs: print-infra-output
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📦 Checkout Code
+        uses: actions/checkout@v4
+
+    
+      - name: 🔐 Configurar Credenciais AWS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: 🔧 Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: ⚡ Cache Node Dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-npm-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-npm-
+
+      - name: 📥 Instalar dependências
+        run: |
+          cd crypto-ui
+          npm install
+
+      - name: 🔍 Run ESLint (Code Quality)
+        run: |
+          cd crypto-ui
+          npm run lint
+      
+      - name: 🧪 Run Frontend Tests (VITEST)
+        run: |
+          cd ./crypto-ui
+          npm run test
+
+      - name: 🎯 Obter Domain Name do CloudFront
+        id: get_cdn_domain
+        run: |
+          CDN_DOMAIN=$(aws cloudfront list-distributions \
+            --query "DistributionList.Items[?Comment=='CDN para o frontend React no S3'].DomainName" \
+            --output text \
+            --region us-east-1) # CloudFront é sempre global/us-east-1
+
+          if [ -z "$CDN_DOMAIN" ]; then
+            echo "⚠️ Aviso: Distribuição CloudFront não encontrada. Usando URL S3."
+            echo "CDN_DOMAIN=${{ steps.show_url.outputs.URL }}" >> $GITHUB_ENV
+            exit 0
+          fi
+
+          echo "CDN_DOMAIN=https://$CDN_DOMAIN" >> $GITHUB_ENV
+          echo "✅ CloudFront Domain: https://$CDN_DOMAIN"
+
+      - name: 🎯 Obter DNS do API Gateway
+        id: get_api_gateway_dns
+        run: |
+          APIGW_ID=$(aws apigateway get-rest-apis \
+            --region ${{ env.AWS_REGION }} \
+            --query "items[?name=='${{ env.APIGW_NAME }}'].id" \
+            --output text)
+
+          if [ -z "$APIGW_ID" ]; then
+            echo "Erro: Não foi possível encontrar o ID para o API Gateway ${{ env.APIGW_NAME }}."
+            exit 1
+          fi
+
+          APIGW_STAGE="prod"
+          APIGW_DNS_NAME="${APIGW_ID}.execute-api.${{ env.AWS_REGION }}.amazonaws.com/${APIGW_STAGE}"
+          echo "APIGW_URL=https://$APIGW_DNS_NAME" >> $GITHUB_ENV
+          echo "✅ API Gateway DNS: https://$APIGW_DNS_NAME"
+
+      - name: ⭐ Build do Frontend
+        run: |
+          cd crypto-ui
+          VITE_API_URL=${{ env.APIGW_URL }} npm run build
+
+      - name: 📦 Preparar artifact (frontend-build.zip)
+        run: |
+          cd crypto-ui
+          zip -r ../frontend-build.zip ./dist || zip -r ../frontend-build.zip ./build
+
+      - name: 📤 Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-build
+          path: frontend-build.zip
+          retention-days: 3
+
+      - name: 🧾 Publicar Resumo do Deploy Frontend
+        if: always()
+        run: |
+          {
+            echo "## 🚀 Frontend Deploy Summary"
+            echo "- Deploy concluído: ✅"
+            echo "- API Gateway: ${APIGW_URL}"
+            echo "- CloudFront Domain: ${CDN_DOMAIN}"
+            echo "- Workflow Run: [${{ github.run_id }}](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})"
+          } >> $GITHUB_STEP_SUMMARY

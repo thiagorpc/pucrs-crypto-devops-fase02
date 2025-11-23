@@ -1,0 +1,161 @@
+name: 003. Backend CI - Build and Push Image
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'crypto-api/**'
+
+  workflow_dispatch:
+
+  # 🔹 Dispara automaticamente quando o workflow Setup AWS for concluído
+  workflow_run:
+    workflows: ["001. Setup Infra AWS"]
+    types:
+      - completed
+
+concurrency:
+  group: terraform
+  cancel-in-progress: false
+  
+env:
+  AWS_REGION: us-east-1
+  ECR_REPOSITORY: pucrs-crypto-api-repo
+
+jobs:
+  # ==========================================================
+  # 🧩 JOB 1: Verifica se a infraestrutura AWS está OK
+  # ==========================================================
+  infra-check:
+    uses: ./.github/workflows/002_check_infra_aws.yml
+    secrets: inherit
+
+  print-infra-output:
+    name: Resultado da Verificação de Infraestrutura
+    needs: infra-check
+    runs-on: ubuntu-latest
+    steps:
+    - name: 🖨 Print Infra Output
+      run: |
+        echo "📢 Infra AWS já está pronta?: ${{ needs.infra-check.outputs.infra_is_ready }}"
+        echo "🔹 Evento que disparou o workflow: ${{ github.event_name }}"
+        
+        if [ "${{ github.event_name }}" != "push" ] && [ "${{ needs.infra-check.outputs.infra_is_ready }}" != "true" ]; then
+          echo "❌ Infra não está pronta e o evento não é push — abortando!"
+          exit 1
+        else
+          echo "✅ Prosseguindo mesmo que a infra não esteja pronta (push detectado ou infra OK)."
+        fi
+
+  # ==========================================================
+  # 🚀 JOB 2: Build, Test e Push da Imagem no ECR
+  # ==========================================================
+  backend-ci-build-and-push:
+    name: 🚀 Build, Test and Push Backend Docker Image
+    needs: print-infra-output
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: 🔐 Configurar Credenciais AWS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: 🛠️ Set up QEMU and Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: 🏷️ Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      # 🏷️ Definir variáveis de imagem
+      - name: 🏷️ Definir Variáveis de Imagem
+        id: vars
+        run: |
+          IMAGE_TAG=$(date +'%Y%m%d')-${GITHUB_RUN_NUMBER}-${GITHUB_SHA::7}
+          echo "$IMAGE_TAG" > image_tag.txt
+          echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_OUTPUT
+          ECR_URI=${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}
+          echo "ECR_URI=$ECR_URI" >> $GITHUB_OUTPUT
+          echo "🔖 Tag: $IMAGE_TAG"
+          echo "⭐ ECR URI: $ECR_URI"
+
+
+      - name: ⚡ Cache Node Dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-npm-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-npm-
+
+      - name: 📦 Install Backend Dependencies
+        run: |
+          cd ./crypto-api
+          npm ci
+
+      - name: 🔍 Run ESLint (Code Quality)
+        run: |
+          cd ./crypto-api
+          npm run lint
+
+      - name: 🧪 Run Backend Tests (Jest)
+        run: |
+          cd ./crypto-api
+          npm run test
+      
+
+      # 🐳 Build e Push
+      - name: 🐳 Build, Tag e Push da Imagem
+        run: |
+          docker build -t ${{ steps.vars.outputs.ECR_URI }}:${{ steps.vars.outputs.IMAGE_TAG }} ./crypto-api
+          docker tag ${{ steps.vars.outputs.ECR_URI }}:${{ steps.vars.outputs.IMAGE_TAG }} ${{ steps.vars.outputs.ECR_URI }}:latest
+          docker push ${{ steps.vars.outputs.ECR_URI }}:${{ steps.vars.outputs.IMAGE_TAG }}
+          docker push ${{ steps.vars.outputs.ECR_URI }}:latest
+
+      #- name: 🐳 Build and Push Docker Image
+      #  run: |
+      #    ECR_REGISTRY=${{ steps.login-ecr.outputs.registry }}
+      #    IMAGE=${ECR_REGISTRY}/${{ env.ECR_REPOSITORY }}:${{ steps.tag.outputs.IMAGE_TAG }}
+      #    docker build -t $IMAGE ./crypto-api
+      #    docker push $IMAGE
+
+      - name: 📤 Upload Image Tag Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-image-tag
+          path: image_tag.txt
+          retention-days: 3
+      
+      - name: 📦 Obter Digest da Imagem
+        id: digest
+        run: |
+          DIGEST=$(aws ecr describe-images --repository-name ${{ env.ECR_REPOSITORY }} \
+            --image-ids imageTag=${{ steps.vars.outputs.IMAGE_TAG }} \
+            --query 'imageDetails[0].imageDigest' --output text)
+          echo "IMAGE_DIGEST=$DIGEST" >> $GITHUB_OUTPUT
+          echo "$DIGEST" > image_digest.txt
+
+      - name: 📤 Upload Digest Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-image-digest
+          path: image_digest.txt
+
+      - name: 🧾 Publicar Resumo no Job Summary
+        if: always()
+        run: |
+          {
+            echo "## 🚀 Backend CI Summary"
+            echo "- Build concluído: ✅"
+            echo "- ECR Repository: **${{ env.ECR_REPOSITORY }}**"
+            echo "- Região: **${{ env.AWS_REGION }}**"
+            echo "- Tag da Imagem: **${{ steps.vars.outputs.IMAGE_TAG }}**"
+            echo "- Pipeline: **${{ github.run_id }}**"
+          } >> $GITHUB_STEP_SUMMARY

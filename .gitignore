@@ -1,24 +1,43 @@
-# Nestjs specific
-/dist
-/node_modules
-/build
-/tmp
-
-# Logs
-logs
+# Arquivos de Dependências e Instalação
+node_modules
+# Logs de NPM/YARN
 *.log
 npm-debug.log*
-pnpm-debug.log*
 yarn-debug.log*
-yarn-error.log*
-lerna-debug.log*
 
-# dotenv environment variable files
-.env
-.env.development
-.env.test
-.env.production
+# Outputs de Build (Gerados pelo compilador/bundler)
+# Para NestJS e React/Vite
+dist
+build
+tmp
 
-# temp directory
-.temp
+# Arquivos de Testes e Cache
+coverage
 .tmp
+.temp
+
+# Segredos e Arquivos de Ambiente
+# Evita o commit acidental de credenciais
+.env
+.env.*
+
+###########################################
+# REGRAS ESPECÍFICAS POR DIRETÓRIO
+###########################################
+ git push -u origem main
+# NestJS Backend (crypto-api)
+# Geralmente o NestJS builda para 'dist', mas garantimos outras pastas
+/crypto-api/coverage
+/crypto-api/logs
+
+# Infraestrutura como Código (IAC - Terraform) - CRÍTICO!
+# NUNCA versionar o estado da infraestrutura
+/iac/.terraform
+/iac/*.tfstate
+/iac/*.tfstate.*
+/iac/crash.log
+/iac/.terraform.lock.hcl
+
+# IDEs e Outros
+.vscode
+.DS_Store

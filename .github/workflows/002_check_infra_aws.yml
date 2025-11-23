@@ -1,0 +1,110 @@
+name: 002. Check Infra AWS
+
+on:
+  workflow_call:
+    outputs:
+      infra_is_ready:
+        description: "Infraestrutura pronta"
+        value: ${{ jobs.plan_check.outputs.infra_is_ready }}
+
+  workflow_dispatch:
+
+env:
+  TF_WORKING_DIR: ./iac/flow
+  AWS_REGION: us-east-1
+
+jobs:
+  plan_check:
+    name: 🧩 Checar Infraestrutura AWS
+    runs-on: ubuntu-latest
+    
+    defaults:
+      run:
+        working-directory: ${{ env.TF_WORKING_DIR }}
+
+    outputs:
+      infra_is_ready: ${{ steps.plan.outputs.infra_is_ready }}
+
+    steps:
+      # -----------------------
+      # 🔹 1. Checkout do Repositório
+      # -----------------------
+      - name: 📦 Checkout Code
+        uses: actions/checkout@v4
+
+      # -----------------------
+      # 🔹 2. Setup Terraform
+      # -----------------------
+      - name: ⚙️ Configurar Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.5.0
+
+      # -----------------------
+      # 🔹 3. Configurar Credenciais AWS
+      # -----------------------
+      - name: 🔐 Configurar Credenciais AWS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      # -----------------------
+      # 🔹 4. Inicializar Terraform
+      # -----------------------
+      - name: 🧱 Terraform Init
+        run: terraform init -reconfigure -input=false
+      
+      # -----------------------
+      # 🔹 5. Verificar como está a Infra.
+      # -----------------------
+      - name: 🔎 Plan
+        id: plan
+        run: |
+          set +e
+
+          echo "📦 Executando terraform plan com saída detalhada..."
+          terraform plan -detailed-exitcode -out=tfplan.binary 2>&1 | tee tfplan_output.txt
+          EXIT_CODE=${PIPESTATUS[0]}
+          echo "Código de Saída do Plan: $EXIT_CODE"
+
+          OUTPUT_VALUE="false"
+
+          terraform show -no-color tfplan.binary > tfplan_show.txt
+
+          PLAN_SUMMARY=$(grep -Eo 'Plan: [0-9]+ to add, [0-9]+ to change, [0-9]+ to destroy' tfplan_output.txt tfplan_show.txt | tail -1)
+
+          if [ -n "$PLAN_SUMMARY" ]; then
+            ADD=$(echo "$PLAN_SUMMARY" | grep -Eo '[0-9]+' | sed -n 1p)
+            CHANGE=$(echo "$PLAN_SUMMARY" | grep -Eo '[0-9]+' | sed -n 2p)
+            DESTROY=$(echo "$PLAN_SUMMARY" | grep -Eo '[0-9]+' | sed -n 3p)
+
+            echo "📊 Resumo do Terraform Plan:"
+            echo "   ➕ $ADD para adicionar"
+            echo "   ♻️ $CHANGE para alterar"
+            echo "   ❌ $DESTROY para destruir"
+          else
+            echo "⚠️ Nenhum resumo de plano encontrado."
+          fi
+
+          # 🔹 Verifica se há tarefas pendentes mesmo se o exit code for 0
+          CHANGES_TOTAL=$((ADD + CHANGE + DESTROY))
+
+          if [ "$CHANGES_TOTAL" -gt 0 ]; then
+            echo "⚠️ Foram detectadas $CHANGES_TOTAL mudanças pendentes (ADD=$ADD, CHANGE=$CHANGE, DESTROY=$DESTROY)."
+            OUTPUT_VALUE="false"
+          elif [ $EXIT_CODE -eq 0 ]; then
+            echo "✅ Nenhuma mudança detectada. Infraestrutura pronta."
+            OUTPUT_VALUE="true"
+          elif [ $EXIT_CODE -eq 2 ]; then
+            echo "⚠️ Mudanças pendentes detectadas (Exit Code 2)."
+            OUTPUT_VALUE="false"
+          else
+            echo "❌ Erro no Terraform Plan (código $EXIT_CODE)."
+            exit 1
+          fi
+
+          echo "infra_is_ready=$OUTPUT_VALUE" >> $GITHUB_OUTPUT
+
+          echo "📢 Saída do output infra_is_ready: $OUTPUT_VALUE"

@@ -25,15 +25,28 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      
-      # Nota: É mais idiomático usar o Action oficial do SonarQube
-      - name: SonarQube Scanner
-        uses: SonarSource/sonarcloud-github-action@master
         with:
-          projectBaseDir: .
-          args: >
-            -Dsonar.host.url=${{ env.SONAR_HOST_URL }}
-            -Dsonar.token=${{ secrets.SONAR_TOKEN }}
+          fetch-depth: 0
+      
+      - name: SonarQube Scan
+        uses: SonarSource/sonarqube-scan-action@sha1
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        with:
+          projectBaseDir: src/crypto-api
+
+      #- uses: SonarSource/sonarqube-scan-action@<action version>
+      #  with:
+      #    projectBaseDir: app/src
+      #    args: >
+      #      "-Dsonar.projectName=PUCRS Crypto DevOps API"
+      #      -Dsonar.projectKey=my-projectkey
+      #      -Dsonar.python.coverage.reportPaths=coverage.xml
+      #      -Dsonar.sources=lib/
+      #      -Dsonar.tests=tests/
+      #      -Dsonar.test.exclusions=tests/**
+      #      -Dsonar.verbose=true
+
 
 # 2. 🛡️ FASE: Teste de Segurança (Depende da Análise de Código)
   #security-test:

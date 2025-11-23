@@ -35,7 +35,7 @@ jobs:
           args: >
             -Dsonar.host.url=${{ env.SONAR_HOST_URL }}
             -Dsonar.token=${{ secrets.SONAR_TOKEN }}
-            -Dsonar.projectKey=crypto-api-project 
+            -Dsonar.projectKey=pucrs-crypto-api
             -Dsonar.sources=crypto-api/src
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}

@@ -29,7 +29,7 @@ export default function App() {
       setShowHealth(true); // mostra o HealthCheck
     } catch (err) {
       console.error(err);
-      setHealth({ error: "Falha ao acessar API" });
+      setHealth({ error: "Falha ao acessar API.." });
       setShowHealth(true);
     } finally {
       setLoadingHealth(false);

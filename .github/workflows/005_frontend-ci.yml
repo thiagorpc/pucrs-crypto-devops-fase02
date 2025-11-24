@@ -76,7 +76,6 @@ jobs:
   # ==========================================================
   # 🚀 JOB 2: Build, Test e Push da Front-End
   # ==========================================================
-
   build-frontend:
     name: 🚀 Build, Test and Push Frontend
     needs: print-infra-output
@@ -85,7 +84,6 @@ jobs:
     steps:
       - name: 📦 Checkout Code
         uses: actions/checkout@v4
-
     
       - name: 🔐 Configurar Credenciais AWS
         uses: aws-actions/configure-aws-credentials@v4

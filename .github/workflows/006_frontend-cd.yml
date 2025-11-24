@@ -7,15 +7,15 @@ on:
     types:
       - completed
 
+concurrency:
+  group: terraform
+  cancel-in-progress: false
+
 env:
   AWS_REGION: us-east-1
   S3_FRONTEND_BUCKET: pucrs-crypto-frontend
   TF_INFRA_WORKFLOW: 001_setup_infra_aws.yml
   APIGW_NAME: pucrs-crypto-api-gateway
-
-concurrency:
-  group: terraform
-  cancel-in-progress: false
 
 jobs:
   deploy:

@@ -64,16 +64,6 @@ jobs:
           echo "🚀 Deploying backend with image tag: ${{ steps.readtag.outputs.IMAGE_TAG }}"
 
         working-directory: ${{ env.TF_WORKING_DIR }}
-        
-      #- name: 📤 Upload Terraform Logs
-      #  if: always()
-      #  uses: actions/upload-artifact@v4
-      #  with:
-      #    name: backend-deploy-logs
-      #    path: |
-      #      ${{ env.TF_WORKING_DIR }}/terraform.tfstate
-      #      ${{ env.TF_WORKING_DIR }}/tfplan.binary
-      #    retention-days: 5
 
       - name: 🧾 Publicar Resumo do Deploy
         if: always()

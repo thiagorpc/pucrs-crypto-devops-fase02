@@ -21,14 +21,15 @@ on:
     types:
       - completed
 
-permissions:
-  id-token: write
-  contents: read
-  # issues: omitido propositalmente → evita criação automática de Issue no repositório
-
 concurrency:
   group: zap_dast_scan
   cancel-in-progress: false
+
+permissions:
+  contents: read
+  issues: none
+  pull-requests: none
+
 
 env:
   AWS_REGION: us-east-1
@@ -59,7 +60,7 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
-      # 🎯 Obter URLs dinâmicas (CloudFront + API Gateway)
+      # 🎯 Obter URLs dinâmicas para o scan
       - name: 🎯 Obter Domain Name do CloudFront
         id: get_cdn_domain
         run: |
@@ -84,18 +85,26 @@ jobs:
           echo "APIGW_URL=https://$APIGW_DNS_NAME" >> $GITHUB_ENV
           echo "✅ API Gateway DNS: https://$APIGW_DNS_NAME"
 
-      # 💥 VARREDURA ZAP VIA DOCKER (sem criar issue)
-      - name: 🔎 Run ZAP Full Scan - API (CLI Mode)
-        run: |
-          echo "🚀 Iniciando ZAP Full Scan..."
-          docker run -v $(pwd):/zap/wrk/:rw --rm owasp/zap2docker-stable zap-full-scan.py \
-            -t ${{ env.APIGW_URL }} \
-            -r zap-api-report.html \
-            -J zap-api-report.json \
-            -a -m 5 -I
-          echo "✅ Scan finalizado. Relatórios: HTML e JSON gerados."
+      # 💥 VARREDURA ZAP E CONVERSÃO PARA SONARQUBE
+      #- name: 🔎 Run ZAP Full Scan - API (Geração JSON)
+      #  uses: zaproxy/action-full-scan@v0.12.0
+      #  with:
+      #    target: ${{ env.APIGW_URL }}
+      #    output_format: json
+      #    output_file: zap-api-report.json
+      #    rules_file_name: '.zap/rules.tsv'
+      #    time: 10 # minutos
+      
+      - name: 🔎 Run ZAP Full Scan - API (Geração JSON)
+        uses: zaproxy/action-full-scan@v0.12.0
+        with:
+          target: ${{ env.APIGW_URL }}
+          rules_file_name: '.zap/rules.tsv'
+          allow_issue_writing: false  # 🚫 Desativa criação de Issues automáticas
+          cmd_options: '-a -m 5'       # modo agressivo e profundidade de spider
 
-      # ✅ Converter relatório JSON → SARIF
+
+      # ✅ Conversão JSON → SARIF via zap2sarif
       - name: 🔄 Converter ZAP JSON para SARIF (CLI)
         run: |
           echo "⚙️ Instalando zap2sarif..."
@@ -104,33 +113,30 @@ jobs:
           zap2sarif zap-api-report.json --output ${{ env.SARIF_API_REPORT }}
           echo "✅ Conversão concluída: ${{ env.SARIF_API_REPORT }}"
 
-      # 💻 Scan ZAP do Frontend (CloudFront)
+      # 💻 Scan ZAP Frontend (CloudFront)
       - name: 🔎 Run ZAP Baseline Scan - Frontend (CloudFront)
         uses: zaproxy/action-baseline@v0.12.0
         with:
           target: ${{ env.CDN_URL }}
           cmd_options: '-a'
           report_name: 'zap-report-frontend.html'
+          allow_issue_writing: false  # 🚫 Desativa criação de Issues automáticas
 
-      # 📤 Upload dos Relatórios
-      - name: 📤 Upload Relatórios ZAP
+      # 📤 Upload do Relatório do Frontend
+      - name: 📤 Upload ZAP Report - Frontend
         uses: actions/upload-artifact@v4
         with:
-          name: zap-dast-reports
-          path: |
-            zap-api-report.html
-            zap-api-report.json
-            zap-report-frontend.html
-            ${{ env.SARIF_API_REPORT }}
+          name: zap-report-frontend
+          path: zap-report-frontend.html
 
       # 🧭 Verificação de relatórios antes do SonarQube
       - name: 🧭 Verificar relatórios gerados
         run: |
-          echo "📁 Verificando relatórios..."
-          ls -l zap-api-report.html zap-api-report.json ${{ env.SARIF_API_REPORT }} || echo "⚠️ Algum relatório não encontrado"
+          echo "📁 Verificando relatórios antes do SonarQube..."
+          ls -l zap-api-report.sarif || echo "⚠️ zap-api-report.sarif não encontrado"
           ls -l dependency-check-report.xml || echo "⚠️ dependency-check-report.xml não encontrado"
 
-      # 📊 Importar relatórios no SonarQube
+      # 📊 Importar resultados no SonarQube
       - name: 📊 Importar Relatórios de Segurança (ZAP + Dependency Check)
         uses: SonarSource/sonarqube-scan-action@v6.0.0
         env:
@@ -145,18 +151,14 @@ jobs:
             -Dsonar.sourceEncoding=UTF-8
             -Dsonar.log.level=INFO
 
-      # 🧾 Publicar resumo no GitHub Actions
+      # 🧾 Publicar resumo do DAST
       - name: 🧾 Publicar Resumo do DAST
         if: always()
         run: |
           {
             echo "## 🛡️ DAST Scan Summary"
-            echo ""
-            echo "✅ **Scan concluído com sucesso!**"
+            echo "- Scan Concluído: ✅"
             echo "- Alvo Frontend (CloudFront): ${{ env.CDN_URL }}"
             echo "- Alvo Backend (API Gateway): ${{ env.APIGW_URL }}"
-            echo "- Relatórios gerados: \`zap-api-report.html\`, \`zap-api-report.json\`, \`zap-api-report.sarif\`"
-            echo "- Importação SonarQube: **Concluída** (SARIF + Dependency Check)"
-            echo ""
-            echo "🔗 [Ver artefatos do ZAP DAST no Job](./)"
+            echo "- Importação SonarQube: **SARIF concluída** para \`pucrs-crypto-api\`"
           } >> $GITHUB_STEP_SUMMARY

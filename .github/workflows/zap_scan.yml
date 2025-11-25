@@ -1,6 +1,7 @@
 name: OWASP ZAP Security Scan
 
-on: [push]
+on:
+     workflow_dispatch:
 
 jobs:
   zap_scan:
@@ -12,7 +13,7 @@ jobs:
 
       - name: Start OWASP ZAP Docker Container
         run: |
-          docker run -d --name zap -p 8080:8080 owasp/zap2docker-stable zap.sh -daemon -port 8080 -host
+          docker run -d --name zap -p 8080:8080 ghcr.io/zaproxy/zaproxy:stable zap.sh -daemon -port 8080 -host
     
       - name: Run OWASP ZAP scan
         uses: zaproxy/action-baseline@v0.6.1

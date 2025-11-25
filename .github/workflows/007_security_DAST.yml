@@ -103,14 +103,14 @@ jobs:
           allow_issue_writing: false  # 🚫 Desativa criação de Issues automáticas
           cmd_options: '-a -m 5'       # modo agressivo e profundidade de spider
 
-      # 💻 Scan ZAP Frontend (CloudFront)
-      - name: 🔎 Run ZAP Baseline Scan - Frontend (CloudFront)
-        uses: zaproxy/action-baseline@v0.12.0
-        with:
-          target: ${{ env.CDN_URL }}
-          cmd_options: '-a'
-          #report_name: 'zap-report-frontend.html'
-          allow_issue_writing: false  # 🚫 Desativa criação de Issues automáticas
+      ## 💻 Scan ZAP Frontend (CloudFront)
+      #- name: 🔎 Run ZAP Baseline Scan - Frontend (CloudFront)
+      #  uses: zaproxy/action-baseline@v0.12.0
+      #  with:
+      #    target: ${{ env.CDN_URL }}
+      #    cmd_options: '-a'
+      #    #report_name: 'zap-report-frontend.html'
+      #    allow_issue_writing: false  # 🚫 Desativa criação de Issues automáticas
 
       # 📤 Upload do Relatório do Frontend
       - name: 🧾 Publicar Resumo do DAST

@@ -11,7 +11,7 @@ on:
         required: true
         default: ""
         type: string
-        
+
   workflow_run:
     workflows: ['006. Frontend CD - Deploy UI']
     types:
@@ -31,9 +31,6 @@ jobs:
   zap_dast_scan:
     name: 🛡️ Run DAST Scans (Frontend & API)
     runs-on: ubuntu-latest
-
-    # ✅ Só roda se o deploy terminou com sucesso
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
 
     steps:
       - name: 📦 Checkout

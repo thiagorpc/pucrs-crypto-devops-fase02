@@ -1,7 +1,6 @@
 name: 006. Frontend CD - Deploy UI
 
 on:
-  workflow_dispatch:
   workflow_run:
     workflows: ['005. Frontend CI - Build UI']
     types:
@@ -57,19 +56,16 @@ jobs:
         run: |
           aws s3 sync temp_build/dist/ s3://${{ env.S3_FRONTEND_BUCKET }} --delete
 
-
       - name: ⚙️ Configurar Terraform
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: 1.5.0
 
-      # 🟢 PASSO CHAVE ADICIONADO: INICIALIZAR O BACKEND
-      - name: 🔑 Inicializar Terraform Backend
+      - name: 🔑 Inicializar Terraform Frontend
         # Usando o mesmo action, mas passando o working_directory como parâmetro do run
         run: |
           terraform init -reconfigure
         working-directory: ./iac/flow
-
 
       - name: 🔄 Invalidar Cache do CloudFront
         working-directory: ./iac/flow

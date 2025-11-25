@@ -85,48 +85,6 @@ jobs:
           echo "APIGW_URL=https://$APIGW_DNS_NAME" >> $GITHUB_ENV
           echo "✅ API Gateway DNS: https://$APIGW_DNS_NAME"
 
-      # 💥 VARREDURA ZAP E CONVERSÃO PARA SONARQUBE
-      #- name: 🔎 Run ZAP Full Scan - API (Geração JSON)
-      #  uses: zaproxy/action-full-scan@v0.12.0
-      #  with:
-      #    target: ${{ env.APIGW_URL }}
-      #    output_format: json
-      #    output_file: zap-api-report.json
-      #    rules_file_name: '.zap/rules.tsv'
-      #    time: 10 # minutos
-      
-      - name: 🔎 Run ZAP Full Scan - API (Geração JSON)
-        uses: zaproxy/action-full-scan@v0.12.0
-        with:
-          target: ${{ env.APIGW_URL }}
-          rules_file_name: '.zap/rules.tsv'
-          allow_issue_writing: false  # 🚫 Desativa criação de Issues automáticas
-          cmd_options: '-a -m 5'       # modo agressivo e profundidade de spider
-
-
-      ##- name: 🔄 Converter ZAP JSON para SARIF (SARIF Multitool)
-      ##  run: |
-      ##    echo "⚙️ Instalando SARIF Multitool..."
-      ##    npm install -g @microsoft/sarif-multitool
-      ##    echo "🔄 Convertendo ZAP JSON → SARIF..."
-      ##    sarif-multitool convert zap-api-report.json --output ${{ env.SARIF_API_REPORT }}
-      ##    echo "✅ Conversão concluída: ${{ env.SARIF_API_REPORT }}"
-
-      - name: 🔍 Validar SARIF (opcional)
-        run: |
-          npm install -g @microsoft/sarif-multitool
-          sarif-multitool validate ${{ env.SARIF_API_REPORT }}
-
-
-
-      # ✅ Conversão JSON → SARIF via zap2sarif
-      #- name: 🔄 Converter ZAP JSON para SARIF (CLI)
-      #  run: |
-      #    echo "⚙️ Instalando zap2sarif..."
-      #    pip install zap2sarif
-      #    echo "🔄 Convertendo JSON para SARIF..."
-      #    zap2sarif zap-api-report.json --output ${{ env.SARIF_API_REPORT }}
-      #    echo "✅ Conversão concluída: ${{ env.SARIF_API_REPORT }}"
 
       # 💻 Scan ZAP Frontend (CloudFront)
       - name: 🔎 Run ZAP Baseline Scan - Frontend (CloudFront)
@@ -137,36 +95,6 @@ jobs:
           report_name: 'zap-report-frontend.html'
           allow_issue_writing: false  # 🚫 Desativa criação de Issues automáticas
 
-      # 📤 Upload do Relatório do Frontend
-      - name: 📤 Upload ZAP Report - Frontend
-        uses: actions/upload-artifact@v4
-        with:
-          name: zap-report-frontend
-          path: zap-report-frontend.html
-
-      # 🧭 Verificação de relatórios antes do SonarQube
-      - name: 🧭 Verificar relatórios gerados
-        run: |
-          echo "📁 Verificando relatórios antes do SonarQube..."
-          ls -l zap-api-report.sarif || echo "⚠️ zap-api-report.sarif não encontrado"
-          ls -l dependency-check-report.xml || echo "⚠️ dependency-check-report.xml não encontrado"
-
-      # 📊 Importar resultados no SonarQube
-      - name: 📊 Importar Relatórios de Segurança (ZAP + Dependency Check)
-        uses: SonarSource/sonarqube-scan-action@v6.0.0
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        with:
-          args: >
-            -Dsonar.host.url=${{ env.SONAR_HOST_URL }}
-            -Dsonar.token=${{ secrets.SONAR_TOKEN }}
-            -Dsonar.projectKey=pucrs-crypto-api
-            -Dsonar.sources=crypto-api/src
-            -Dsonar.externalIssuesReportPaths=zap-api-report.sarif,dependency-check-report.xml
-            -Dsonar.sourceEncoding=UTF-8
-            -Dsonar.log.level=INFO
-
-      # 🧾 Publicar resumo do DAST
       - name: 🧾 Publicar Resumo do DAST
         if: always()
         run: |
@@ -175,5 +103,4 @@ jobs:
             echo "- Scan Concluído: ✅"
             echo "- Alvo Frontend (CloudFront): ${{ env.CDN_URL }}"
             echo "- Alvo Backend (API Gateway): ${{ env.APIGW_URL }}"
-            echo "- Importação SonarQube: **SARIF concluída** para \`pucrs-crypto-api\`"
           } >> $GITHUB_STEP_SUMMARY

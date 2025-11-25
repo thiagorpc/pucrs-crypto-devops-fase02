@@ -3,6 +3,15 @@ name: 007. Security DAST - OWASP ZAP Scan 🛡️
 on:
   # O scan deve rodar APÓS o deploy do frontend e backend
   # Ajuste '006. Frontend CD - Deploy UI' para o workflow que executa o deploy final
+  workflow_dispatch:
+    inputs:
+      # Força a confirmação manual do scan na interface do Actions
+      confirm_dast:
+        description: "Confirmação de DAST Scan: Digite 'dast' para continuar."
+        required: true
+        default: ""
+        type: string
+        
   workflow_run:
     workflows: ['006. Frontend CD - Deploy UI']
     types:

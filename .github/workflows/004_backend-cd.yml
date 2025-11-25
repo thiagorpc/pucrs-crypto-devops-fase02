@@ -1,7 +1,6 @@
 name: 004. Backend CD - Deploy
 
 on:
-  workflow_dispatch:
   workflow_run:
     workflows: ['003. Backend CI - Build and Push Image']
     types:

@@ -104,14 +104,23 @@ jobs:
           cmd_options: '-a -m 5'       # modo agressivo e profundidade de spider
 
 
-      # ✅ Conversão JSON → SARIF via zap2sarif
-      - name: 🔄 Converter ZAP JSON para SARIF (CLI)
+      - name: 🔄 Converter ZAP JSON para SARIF (SARIF Multitool)
         run: |
-          echo "⚙️ Instalando zap2sarif..."
-          pip install zap2sarif
-          echo "🔄 Convertendo JSON para SARIF..."
-          zap2sarif zap-api-report.json --output ${{ env.SARIF_API_REPORT }}
+          echo "⚙️ Instalando SARIF Multitool..."
+          npm install -g @microsoft/sarif-multitool
+          echo "🔄 Convertendo ZAP JSON → SARIF..."
+          sarif-multitool convert zap-api-report.json --output ${{ env.SARIF_API_REPORT }}
           echo "✅ Conversão concluída: ${{ env.SARIF_API_REPORT }}"
+
+
+      # ✅ Conversão JSON → SARIF via zap2sarif
+      #- name: 🔄 Converter ZAP JSON para SARIF (CLI)
+      #  run: |
+      #    echo "⚙️ Instalando zap2sarif..."
+      #    pip install zap2sarif
+      #    echo "🔄 Convertendo JSON para SARIF..."
+      #    zap2sarif zap-api-report.json --output ${{ env.SARIF_API_REPORT }}
+      #    echo "✅ Conversão concluída: ${{ env.SARIF_API_REPORT }}"
 
       # 💻 Scan ZAP Frontend (CloudFront)
       - name: 🔎 Run ZAP Baseline Scan - Frontend (CloudFront)

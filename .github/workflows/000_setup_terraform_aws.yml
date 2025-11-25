@@ -51,17 +51,3 @@ jobs:
       - name: Terraform Apply (Criar S3 e DynamoDB)
         id: apply
         run: terraform apply -auto-approve
-
-      - name: Gerar apply_status.txt
-        if: always()
-        run: |
-          STATUS="success"
-          echo "{\"name\": \"setup_aws\", \"apply\": \"${STATUS}\", \"date\": \"$(date '+%Y-%m-%d %H:%M:%S')\"}" > $GITHUB_WORKSPACE/apply_status.txt
-
-      - name: Upload do artifact
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: terraform-apply-status
-          path: ${{ github.workspace }}/apply_status.txt
-          retention-days: 1

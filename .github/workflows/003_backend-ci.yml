@@ -72,7 +72,6 @@ jobs:
           echo "✅ Prosseguindo mesmo que a infra não esteja pronta (push detectado ou infra OK)."
         fi
 
-
   # 3. 🚀 Build, Test e Push da Imagem no ECR
   backend-ci-build-and-push:
     name: 🚀 Build, Test and Push Backend Docker Image
@@ -90,7 +89,7 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: 🛠️ Set up QEMU and Docker Buildx
+      - name: 🛠️ Set up QEMU and Docker Build
         uses: docker/setup-buildx-action@v2
 
       - name: 🏷️ Login to Amazon ECR

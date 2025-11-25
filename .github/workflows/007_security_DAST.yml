@@ -1,6 +1,12 @@
+###############################################
+# File: .github/workflows/007_security_dast.yml
+# Name: 007. Security DAST - ZAP Scan & SonarQube Import 🛡️📊
+###############################################
+
 name: 007. Security DAST - ZAP Scan & SonarQube Import 🛡️📊
 
 on:
+  # Permite execução manual com confirmação
   workflow_dispatch:
     inputs:
       confirm_dast:
@@ -9,6 +15,7 @@ on:
         default: ""
         type: string
 
+  # Executa automaticamente após o deploy do frontend
   workflow_run:
     workflows: ['006. Frontend CD - Deploy UI']
     types:
@@ -39,6 +46,7 @@ jobs:
         with:
           fetch-depth: 0
 
+      # 🔐 CONFIGURAÇÃO AWS
       - name: 🔐 Configurar Credenciais AWS
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -46,6 +54,7 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
+      # 🎯 Obter URLs dinâmicas para o scan
       - name: 🎯 Obter Domain Name do CloudFront
         id: get_cdn_domain
         run: |
@@ -70,6 +79,7 @@ jobs:
           echo "APIGW_URL=https://$APIGW_DNS_NAME" >> $GITHUB_ENV
           echo "✅ API Gateway DNS: https://$APIGW_DNS_NAME"
 
+      # 💥 VARREDURA ZAP E CONVERSÃO PARA SONARQUBE
       - name: 🔎 Run ZAP Full Scan - API (Geração JSON)
         uses: zaproxy/action-full-scan@v0.12.0
         with:
@@ -77,14 +87,18 @@ jobs:
           output_format: json
           output_file: zap-api-report.json
           rules_file_name: '.zap/rules.tsv'
-          time: 10
+          time: 10 # minutos
 
-      - name: 🔄 Converter ZAP JSON para SARIF
-        uses: zaproxy/action-sarif@v0.1.0
-        with:
-          zap_json_file: zap-api-report.json
-          output_file: ${{ env.SARIF_API_REPORT }}
+      # ✅ Conversão JSON → SARIF via zap2sarif
+      - name: 🔄 Converter ZAP JSON para SARIF (CLI)
+        run: |
+          echo "⚙️ Instalando zap2sarif..."
+          pip install zap2sarif
+          echo "🔄 Convertendo JSON para SARIF..."
+          zap2sarif zap-api-report.json --output ${{ env.SARIF_API_REPORT }}
+          echo "✅ Conversão concluída: ${{ env.SARIF_API_REPORT }}"
 
+      # 💻 Scan ZAP Frontend (CloudFront)
       - name: 🔎 Run ZAP Baseline Scan - Frontend (CloudFront)
         uses: zaproxy/action-baseline@v0.12.0
         with:
@@ -92,18 +106,21 @@ jobs:
           cmd_options: '-a'
           report_name: 'zap-report-frontend.html'
 
+      # 📤 Upload do Relatório do Frontend
       - name: 📤 Upload ZAP Report - Frontend
         uses: actions/upload-artifact@v4
         with:
           name: zap-report-frontend
           path: zap-report-frontend.html
 
+      # 🧭 Verificação de relatórios antes do SonarQube
       - name: 🧭 Verificar relatórios gerados
         run: |
           echo "📁 Verificando relatórios antes do SonarQube..."
           ls -l zap-api-report.sarif || echo "⚠️ zap-api-report.sarif não encontrado"
           ls -l dependency-check-report.xml || echo "⚠️ dependency-check-report.xml não encontrado"
 
+      # 📊 Importar resultados no SonarQube
       - name: 📊 Importar Relatórios de Segurança (ZAP + Dependency Check)
         uses: SonarSource/sonarqube-scan-action@v6.0.0
         env:
@@ -118,6 +135,7 @@ jobs:
             -Dsonar.sourceEncoding=UTF-8
             -Dsonar.log.level=INFO
 
+      # 🧾 Publicar resumo do DAST
       - name: 🧾 Publicar Resumo do DAST
         if: always()
         run: |

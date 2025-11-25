@@ -84,34 +84,14 @@ jobs:
           APIGW_DNS_NAME="${APIGW_ID}.execute-api.${{ env.AWS_REGION }}.amazonaws.com/${APIGW_STAGE}"
           echo "APIGW_URL=https://$APIGW_DNS_NAME" >> $GITHUB_ENV
           echo "✅ API Gateway DNS: https://$APIGW_DNS_NAME"
-
-      # 💥 VARREDURA ZAP E CONVERSÃO PARA SONARQUBE
-      #- name: 🔎 Run ZAP Full Scan - API (Geração JSON)
-      #  uses: zaproxy/action-full-scan@v0.12.0
-      #  with:
-      #    target: ${{ env.APIGW_URL }}
-      #    output_format: json
-      #    output_file: zap-api-report.json
-      #    rules_file_name: '.zap/rules.tsv'
-      #    time: 10 # minutos
       
-      #- name: 🔎 Run ZAP Full Scan - API (Geração JSON)
-      #  uses: zaproxy/action-full-scan@v0.12.0
-      #  with:
-      #    target: ${{ env.APIGW_URL }}
-      #    #rules_file_name: '.zap/rules.tsv'
-      #    allow_issue_writing: false  # 🚫 Desativa criação de Issues automáticas
-      #    cmd_options: '-a -m 5'       # modo agressivo e profundidade de spider
-
-      - name: 🔎 Run ZAP Baseline Scan - Frontend (CLI Mode)
-        run: |
-          echo "🚀 Iniciando ZAP Baseline Scan (Frontend)..."
-          docker run -v $(pwd):/zap/wrk/:rw --rm owasp/zap2docker-stable zap-baseline.py \
-            -t ${{ env.CDN_URL }} \
-            -r zap-report-frontend.html \
-            -J zap-frontend-report.json \
-            -a -m 5 -I
-          echo "✅ ZAP Baseline Scan concluído com sucesso."
+      - name: 🔎 Run ZAP Full Scan - API (Geração JSON)
+        uses: zaproxy/action-full-scan@v0.12.0
+        with:
+          target: ${{ env.APIGW_URL }}
+          #rules_file_name: '.zap/rules.tsv'
+          allow_issue_writing: false  # 🚫 Desativa criação de Issues automáticas
+          cmd_options: '-a -m 5'       # modo agressivo e profundidade de spider
 
       # 📤 Upload do Relatório do Frontend
       - name: 🧾 Publicar Resumo do DAST
@@ -120,6 +100,5 @@ jobs:
           {
             echo "## 🛡️ DAST Scan Summary"
             echo "- Scan Concluído: ✅"
-            echo "- Alvo Frontend (CloudFront): ${{ env.CDN_URL }}"
             echo "- Alvo Backend (API Gateway): ${{ env.APIGW_URL }}"
           } >> $GITHUB_STEP_SUMMARY

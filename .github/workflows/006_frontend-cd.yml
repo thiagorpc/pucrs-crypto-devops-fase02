@@ -61,7 +61,7 @@ jobs:
         with:
           terraform_version: 1.5.0
 
-      - name: 🔑 Inicializar Terraform Frontend
+      - name: 🔑 Inicializar Terraform Backend
         # Usando o mesmo action, mas passando o working_directory como parâmetro do run
         run: |
           terraform init -reconfigure

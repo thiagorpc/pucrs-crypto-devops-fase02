@@ -1,0 +1,23 @@
+name: OWASP ZAP Security Scan
+
+on: [push]
+
+jobs:
+  zap_scan:
+    runs-on: ubuntu-latest
+    name: Run DAST scan on the web application
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Start OWASP ZAP Docker Container
+        run: |
+          docker run -d --name zap -p 8080:8080 owasp/zap2docker-stable zap.sh -daemon -port 8080 -host
+    
+      - name: Run OWASP ZAP scan
+        uses: zaproxy/action-baseline@v0.6.1
+        with:
+          docker_name: 'owasp/zap2docker-stable'
+          target: http://localhost:3000
+          rules_file_name: '.zap/rules.tsv'
+          cmd_options: '-a'

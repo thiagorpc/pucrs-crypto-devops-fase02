@@ -85,6 +85,23 @@ jobs:
           echo "APIGW_URL=https://$APIGW_DNS_NAME" >> $GITHUB_ENV
           echo "✅ API Gateway DNS: https://$APIGW_DNS_NAME"
 
+      # 💥 VARREDURA ZAP E CONVERSÃO PARA SONARQUBE
+      #- name: 🔎 Run ZAP Full Scan - API (Geração JSON)
+      #  uses: zaproxy/action-full-scan@v0.12.0
+      #  with:
+      #    target: ${{ env.APIGW_URL }}
+      #    output_format: json
+      #    output_file: zap-api-report.json
+      #    rules_file_name: '.zap/rules.tsv'
+      #    time: 10 # minutos
+      
+      - name: 🔎 Run ZAP Full Scan - API (Geração JSON)
+        uses: zaproxy/action-full-scan@v0.12.0
+        with:
+          target: ${{ env.APIGW_URL }}
+          #rules_file_name: '.zap/rules.tsv'
+          allow_issue_writing: false  # 🚫 Desativa criação de Issues automáticas
+          cmd_options: '-a -m 5'       # modo agressivo e profundidade de spider
 
       # 💻 Scan ZAP Frontend (CloudFront)
       - name: 🔎 Run ZAP Baseline Scan - Frontend (CloudFront)
@@ -92,9 +109,10 @@ jobs:
         with:
           target: ${{ env.CDN_URL }}
           cmd_options: '-a'
-          report_name: 'zap-report-frontend.html'
+          #report_name: 'zap-report-frontend.html'
           allow_issue_writing: false  # 🚫 Desativa criação de Issues automáticas
 
+      # 📤 Upload do Relatório do Frontend
       - name: 🧾 Publicar Resumo do DAST
         if: always()
         run: |

@@ -104,13 +104,19 @@ jobs:
           cmd_options: '-a -m 5'       # modo agressivo e profundidade de spider
 
 
-      - name: 🔄 Converter ZAP JSON para SARIF (SARIF Multitool)
+      ##- name: 🔄 Converter ZAP JSON para SARIF (SARIF Multitool)
+      ##  run: |
+      ##    echo "⚙️ Instalando SARIF Multitool..."
+      ##    npm install -g @microsoft/sarif-multitool
+      ##    echo "🔄 Convertendo ZAP JSON → SARIF..."
+      ##    sarif-multitool convert zap-api-report.json --output ${{ env.SARIF_API_REPORT }}
+      ##    echo "✅ Conversão concluída: ${{ env.SARIF_API_REPORT }}"
+
+      - name: 🔍 Validar SARIF (opcional)
         run: |
-          echo "⚙️ Instalando SARIF Multitool..."
           npm install -g @microsoft/sarif-multitool
-          echo "🔄 Convertendo ZAP JSON → SARIF..."
-          sarif-multitool convert zap-api-report.json --output ${{ env.SARIF_API_REPORT }}
-          echo "✅ Conversão concluída: ${{ env.SARIF_API_REPORT }}"
+          sarif-multitool validate ${{ env.SARIF_API_REPORT }}
+
 
 
       # ✅ Conversão JSON → SARIF via zap2sarif
